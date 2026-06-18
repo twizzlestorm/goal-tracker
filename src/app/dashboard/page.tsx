@@ -312,7 +312,7 @@ export default function DashboardPage() {
 
                   <div className="mt-2">
                     {activity.type === "gym" && activity.photo_url && (
-                      <img src={activity.photo_url} alt="Gym photo" className="mt-2 h-24 w-24 rounded-md object-cover border"/>
+                      <img src={activity.photo_url} alt="Gym photo" className="mt-2 max-h-40 w-auto rounded-md object-cover border"/>
                     )}
                   </div>
 
