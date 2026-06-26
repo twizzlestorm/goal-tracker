@@ -157,6 +157,12 @@ export default function JournalPage() {
     }
   }
 
+  function autoResizeTextarea(textarea: HTMLTextAreaElement | null) {
+    if (!textarea) return;
+    textarea.style.height = "0px";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }
+
   async function startEditing(entry: JournalEntry) {
     setEditingEntryId(entry.id);
     setEditTitle(entry.title ?? "");
@@ -250,8 +256,12 @@ export default function JournalPage() {
         <textarea
           placeholder="What's on your mind?"
           value={content}
-          onChange={(e) => setContent(e.target.value)}
-          className="min-h-[250px] w-full rounded-lg border p-3"
+          onChange={(e) => {
+            setContent(e.target.value);
+            autoResizeTextarea(e.target);
+          }}
+          onInput={(e) => autoResizeTextarea(e.currentTarget)}
+          className="min-h-[250px] w-full rounded-lg border p-3 resize-none overflow-hidden"
         />
 
         <button
@@ -311,8 +321,12 @@ export default function JournalPage() {
                     <textarea
                       placeholder="What's on your mind?"
                       value={editContent}
-                      onChange={(e) => setEditContent(e.target.value)}
-                      className="min-h-[180px] w-full rounded-lg border p-3"
+                      onChange={(e) => {
+                        setEditContent(e.target.value);
+                        autoResizeTextarea(e.target);
+                      }}
+                      onInput={(e) => autoResizeTextarea(e.currentTarget)}
+                      className="min-h-[180px] w-full rounded-lg border p-3 resize-none overflow-hidden"
                     />
 
                     <div className="flex gap-2">
@@ -368,17 +382,19 @@ export default function JournalPage() {
                   </div>
 
                   <div className="mt-4 flex gap-2">
-                    <input
-                      type="text"
+                    <textarea
                       placeholder="Add a comment..."
                       value={commentInputs[entry.id] || ""}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const value = e.target.value;
                         setCommentInputs((prev) => ({
                           ...prev,
-                          [entry.id]: e.target.value,
-                        }))
-                      }
-                      className="flex-1 rounded-lg border p-2"
+                          [entry.id]: value,
+                        }));
+                        autoResizeTextarea(e.target);
+                      }}
+                      onInput={(e) => autoResizeTextarea(e.currentTarget)}
+                      className="flex-1 min-h-[40px] rounded-lg border p-2 resize-none overflow-hidden"
                     />
 
                     <button
