@@ -178,7 +178,7 @@ export default function JournalPage() {
           onChange={(e) => setTitle(e.target.value)}
           className="mb-4 w-full rounded-lg border p-3"
         />
-
+        
         <textarea
           placeholder="What's on your mind?"
           value={content}

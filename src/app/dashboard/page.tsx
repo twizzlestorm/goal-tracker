@@ -66,8 +66,16 @@ export default function DashboardPage() {
     async function loadDashboard() {
       setLoading(true);
 
-      const today = new Date();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
+      if (!user) {
+        router.replace("/");
+        return;
+      }
+
+      const today = new Date();
 
       const todayString =
         today.toISOString().split("T")[0];
@@ -93,7 +101,8 @@ export default function DashboardPage() {
         supabase
           .from("journal_entries")
           .select("id")
-          .eq("entry_date", todayString),
+          .eq("entry_date", todayString)
+          .eq("user_id", user.id),
 
         supabase
           .from("gym_sessions")
@@ -223,7 +232,16 @@ export default function DashboardPage() {
             </button>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
-            <Link href="/journal" className="rounded-xl border p-6 transition hover:bg-zinc-50">
+            <Link
+              href="/journal"
+              className={`rounded-xl border p-6 transition hover:bg-zinc-50 ${
+                loading
+                  ? "bg-zinc-500 border-zinc-200"
+                  : journalToday > 0
+                  ? "bg-emerald-900 border-emerald-300"
+                  : "bg-rose-900 border-rose-300"
+              }`}
+            >
                 <h2 className="text-xl font-semibold">
                     Journal
                 </h2>
@@ -235,7 +253,7 @@ export default function DashboardPage() {
                     : (<>
                         <p className="mt-2 text-3xl font-bold"> {journalToday} </p>
                         <p className="text-zinc-500">
-                            entries today
+                            your entries today
                         </p>
                     </>)
             } </Link>
