@@ -43,6 +43,12 @@ export default function JournalPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [updatingEntry, setUpdatingEntry] = useState(false);
+  const [deletingEntryId, setDeletingEntryId] = useState<number | null>(null);
 
   useEffect(() => {
     checkUser();
@@ -62,8 +68,19 @@ export default function JournalPage() {
   async function loadData() {
     setLoading(true);
 
-    const [entriesResult, commentsResult, profilesResult] = await Promise.all([
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
+    setCurrentUserId(user?.id ?? null);
+
+    if (!user) {
+      router.replace("/");
+      setLoading(false);
+      return;
+    }
+
+    const [entriesResult, commentsResult, profilesResult] = await Promise.all([
       supabase.from("journal_entries").select("*").order("created_at", {
         ascending: false,
       }),
@@ -74,11 +91,6 @@ export default function JournalPage() {
 
       supabase.from("profiles").select("*"),
     ]);
-
-    console.log("Profiles query result:");
-    console.log(profilesResult);
-    console.log("Profiles data:");
-    console.log(profilesResult.data);
 
     if (entriesResult.data) {
       setEntries(entriesResult.data);
@@ -145,6 +157,62 @@ export default function JournalPage() {
     }
   }
 
+  async function startEditing(entry: JournalEntry) {
+    setEditingEntryId(entry.id);
+    setEditTitle(entry.title ?? "");
+    setEditContent(entry.content);
+  }
+
+  function cancelEditing() {
+    setEditingEntryId(null);
+    setEditTitle("");
+    setEditContent("");
+  }
+
+  async function updateEntry() {
+    if (!editingEntryId || !currentUserId || !editContent.trim()) return;
+
+    setUpdatingEntry(true);
+
+    const { error } = await supabase
+      .from("journal_entries")
+      .update({
+        title: editTitle || null,
+        content: editContent,
+      })
+      .eq("id", editingEntryId)
+      .eq("user_id", currentUserId);
+
+    if (!error) {
+      cancelEditing();
+      await loadData();
+    }
+
+    setUpdatingEntry(false);
+  }
+
+  async function deleteEntry(entryId: number) {
+    if (!currentUserId) return;
+    if (!window.confirm("Delete this journal entry?")) return;
+
+    setDeletingEntryId(entryId);
+
+    const [{ error: commentsError }, { error: entryError }] = await Promise.all([
+      supabase.from("journal_comments").delete().eq("journal_entry_id", entryId),
+      supabase
+        .from("journal_entries")
+        .delete()
+        .eq("id", entryId)
+        .eq("user_id", currentUserId),
+    ]);
+
+    if (!commentsError && !entryError) {
+      await loadData();
+    }
+
+    setDeletingEntryId(null);
+  }
+
   function getDisplayName(userId: string) {
     return (
       profiles.find((profile) => profile.id === userId)?.display_name ??
@@ -178,7 +246,7 @@ export default function JournalPage() {
           onChange={(e) => setTitle(e.target.value)}
           className="mb-4 w-full rounded-lg border p-3"
         />
-        
+
         <textarea
           placeholder="What's on your mind?"
           value={content}
@@ -205,15 +273,73 @@ export default function JournalPage() {
           <div className="space-y-6">
             {entries.map((entry) => (
               <div key={entry.id} className="rounded-xl border p-4">
-                <div className="mb-2 text-sm font-medium text-zinc-500">
-                  {getDisplayName(entry.user_id)}
+                <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-sm font-medium text-zinc-500">
+                    {getDisplayName(entry.user_id)}
+                  </div>
+
+                  {entry.user_id === currentUserId && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => startEditing(entry)}
+                        className="rounded-sm bg-blue-600 px-2.5 py-1 text-xs font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={updatingEntry}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => deleteEntry(entry.id)}
+                        className="rounded-sm bg-red-600 px-2.5 py-1 text-xs font-medium text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={deletingEntryId === entry.id}
+                      >
+                        {deletingEntryId === entry.id ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                {entry.title && (
-                  <h3 className="mb-2 text-lg font-semibold">{entry.title}</h3>
-                )}
+                {editingEntryId === entry.id ? (
+                  <div className="space-y-3">
+                    <input
+                      type="text"
+                      placeholder="Title (optional)"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      className="w-full rounded-lg border p-3"
+                    />
 
-                <p className="whitespace-pre-wrap">{entry.content}</p>
+                    <textarea
+                      placeholder="What's on your mind?"
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      className="min-h-[180px] w-full rounded-lg border p-3"
+                    />
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={updateEntry}
+                        disabled={updatingEntry || !editContent.trim()}
+                        className="rounded-lg bg-zinc-900 border px-4 py-2 text-white disabled:opacity-50"
+                      >
+                        {updatingEntry ? "Saving..." : "Save"}
+                      </button>
+                      <button
+                        onClick={cancelEditing}
+                        className="rounded-lg border px-4 py-2"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {entry.title && (
+                      <h3 className="mb-1 text-lg font-semibold">{entry.title}</h3>
+                    )}
+
+                    <p className="whitespace-pre-wrap">{entry.content}</p>
+                  </>
+                )}
 
                 <p className="mt-3 text-xs text-zinc-500">
                   {new Date(entry.created_at).toLocaleString()}
